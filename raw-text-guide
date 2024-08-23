@@ -1,0 +1,312 @@
+python3tierwebapp
+
+Step 1: Setting up python virtual environment
+
+# Instance login and update (in this example we have considered using an AWS RedHat EC2 instance)
+ssh -i test.pem ec2-user@public-ip
+sudo su
+yum update -y
+
+# Installing python
+yum install python -y
+python --version
+
+# Creating a virtual environment for Python
+sudo yum install python3-virtualenv -y
+python -m virtualenv venv
+
+# Activating the virtual environment
+source venv/bin/activate
+
+==============================
+
+Step 2: Installing Flask to run our Python app
+
+# Installing pip
+/home/ec2-user/venv/bin/python -m pip install --upgrade pip
+
+# Installing Flask
+pip install Flask
+pip list | grep -i 'flask'
+
+# Creating our Python application using Flask
+mkdir app
+cd app/
+vi app.py
+
+==============================
+
+from flask import Flask, request, render_template_string
+
+app = Flask(__name__)
+
+@app.route('/', methods=['GET', 'POST'])
+def home():
+    if request.method == 'POST':
+        user_input = request.form['user_input']
+        return render_template_string("""
+            <p>Hello, welcome to this app</p>
+            <form method="post">
+                <input type="text" name="user_input" />
+                <input type="submit" value="OK" />
+            </form>
+            <h2>Thank you, we received your response: {{ user_input }}</h2>
+        """, user_input=user_input)
+    
+    return render_template_string("""
+        <p>Hello, welcome to this app</p>
+        <form method="post">
+            <input type="text" name="user_input" />
+            <input type="submit" value="OK" />
+        </form>
+    """)
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=80)
+
+==============================
+
+# Start your Python application using Flask
+# Flask defaults to port 5000
+# If you want to use the default port specified in app.py (i.e., 80), then modify the command to:
+
+FLASK_APP=app.py flask run --host=0.0.0.0 --port=80
+
+==============================
+
+Step 3: Using uWSGI to run your Python app
+
+# Installing uWSGI
+# Note: The app folder is inside /home/ec2-user/
+# Navigate to your app directory
+cd /home/ec2-user/app/
+
+# Install Python wheel package
+pip install wheel
+
+# Upgrade setuptools and pip to the latest versions
+pip install --upgrade setuptools pip
+
+# Install development tools and Python development headers
+sudo yum groupinstall "Development Tools" -y
+sudo yum install python3-devel -y
+
+# Find setup.py
+find / -name setup.py
+
+# Install uWSGI
+pip install uwsgi
+
+# Using uWSGI application server to host our application via browser on port 80
+vi app.ini
+
+==============================
+
+[uwsgi]
+module = app:app
+master = true
+processes = 5
+http = :80
+pidfile = /tmp/uwsgi.pid
+vacuum = true
+die-on-term = true
+
+==============================
+
+# Hosting your application using uWSGI application server (manual)
+uwsgi --ini app.ini
+
+# Accessing your application
+You can now access your Python web application in the browser on port 80
+
+==============================
+
+Step 4: Using NGINX as a reverse proxy
+
+This document explains how we are configuring NGINX web server as a reverse proxy. NGINX webserver is used to send/receive HTTP requests and HTTP responses from clients' browsers. It will then forward the same to the uWSGI application for processing.
+
+As we were previously using uWSGI to host our application as a web server too, we have the app.ini config to include port 80. But it's taken over by NGINX server now. The main part is to configure NGINX to connect to uWSGI (by updating the app.ini file with app.sock) and also configure NGINX to host the application on port 80.
+
+# Update the app.ini file
+vi app.ini
+
+==============================
+
+[uwsgi]
+module = app:app
+master = true
+processes = 5
+socket = /home/ec2-user/app/app.sock
+chmod-socket = 666
+vacuum = true
+die-on-term = true
+
+==============================
+
+# Installing NGINX
+sudo yum install nginx
+
+# Starting the NGINX service
+sudo systemctl status nginx
+sudo systemctl start nginx
+sudo systemctl enable nginx
+
+# Configuring the system to allow NGINX to run
+sudo yum install firewalld
+sudo systemctl start firewalld
+
+sudo firewall-cmd --permanent --add-port=80/tcp
+sudo firewall-cmd --permanent --add-port=443/tcp
+sudo firewall-cmd --reload
+
+# Configuring NGINX to connect to uWSGI
+vi /etc/nginx/nginx.conf
+
+==============================
+
+server {
+    listen 80;
+    server_name 18.224.40.52;
+    location / {
+        include uwsgi_params;
+        uwsgi_pass unix:/home/ec2-user/app/app.sock;
+    }
+}
+
+==============================
+
+# Checking the syntax and restarting the service
+sudo nginx -t
+sudo systemctl reload nginx
+sudo systemctl restart nginx
+sudo systemctl status nginx
+
+# Providing permissions to directories
+sudo chmod 777 /home/
+sudo chmod 777 /home/ec2-user/
+sudo chmod 777 /home/ec2-user/app/
+sudo touch /home/ec2-user/app/app.sock
+sudo chmod 666 /home/ec2-user/app/app.sock
+
+# Starting the application
+uwsgi --ini /home/ec2-user/app/app.ini
+
+Note: No changes are required in app.py file.
+
+==============================
+
+Step 5: DB configuration 
+
+This documentation will explain how to configure the SQLite database to store the user data from the application. SQLite is a lightweight database engine.
+
+# Install SQLite
+sudo yum install sqlite
+
+# Modify the app.py file to include database configuration
+vi app.py
+
+==============================
+
+from flask import Flask, request, render_template_string, g
+import sqlite3
+
+app = Flask(__name__)
+
+def get_db():
+    if 'db' not in g:
+        g.db = sqlite3.connect('database.db')
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+def init_db():
+    with app.app_context():
+        db = get_db()
+        with app.open_resource('schema.sql') as f:
+            db.executescript(f.read().decode('utf8'))
+
+@app.route('/', methods=['GET', 'POST'])
+def home():
+    if request.method == 'POST':
+        user_input = request.form['user_input']
+        db = get_db()
+        db.execute('INSERT INTO user_input (input) VALUES (?)', (user_input,))
+        db.commit()
+        return render_template_string("""
+            <p>Hello, welcome to this app</p>
+            <form method="post">
+                <input type="text" name="user_input" />
+                <input type="submit" value="OK" />
+            </form>
+            <h2>You entered: {{ user_input }}</h2>
+        """, user_input=user_input)
+    
+    return render_template_string("""
+        <p>Hello, welcome to this app</p>
+        <form method="post">
+            <input type="text" name="user_input" />
+            <input type="submit" value="OK" />
+        </form>
+    """)
+
+if __name__ == '__main__':
+    with app.app_context():
+        init_db()
+    app.run(host='0.0.0.0', port=80)
+
+==============================
+
+# Create the schema.sql file
+vi schema.sql
+
+==============================
+
+CREATE TABLE IF NOT EXISTS user_input (
+    id INTEGER PRIMARY KEY,
+    input TEXT NOT NULL
+);
+
+==============================
+
+# Initialize the database
+You can do this in the Python shell:
+
+from app import init_db 
+init_db()
+
+# Enter the Python shell
+python
+>>> from app import init_db
+>>> init_db()
+
+# Restart NGINX and start the application
+sudo systemctl status nginx
+sudo systemctl restart nginx
+sudo systemctl status nginx
+uwsgi --ini /home/ec2-user/app/app.ini
+
+# Access your application
+Open your web browser and navigate to your server's IP address or domain to access the application and make some entries.
+
+# Login to the database and execute a few DB queries
+sqlite3 /home/ec2-user/app/database.db
+
+==============================
+
+# Login to the database and execute a few DB queries
+
+# Login to DB
+sqlite3 /home/ec2-user/app/database.db
+
+# List all tables in the database
+.tables
+
+# View the structure of a table
+.schema user_input
+
+# View data in tables
+SELECT * FROM user_input;
+
+# Exit the SQLite command-line
+.quit
+
+Note: You can also exit by pressing Ctrl+D in the SQLite command-line interface.
