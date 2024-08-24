@@ -27,7 +27,7 @@ Step 2: Installing Flask to run our python app
 /home/ec2-user/venv/bin/python -m pip install -upgrade pip
 # Installing flask
 pip install Flask 
-pip listigrep -i ‘flask’
+pip list | grep -i ‘Flask’
 
 # Creating our python application using flask
 mkdir app
@@ -37,28 +37,6 @@ vi app.py
 
 *****************************************
 
-from flask import Flask, request, render_template _string
-
-app = Flask(__name_)
-
-@app.route(‘/‘, methods=[GET, ‘POST’])
-def home():
-    if request.method ==‘POST’:
-	user_input = request.form[‘user_input’]
- 	return render_template_string(“”
-	<p>Hello, welcome to this app</p> 
-	<form method= “post”>
-		
-input type="text" name="user_input
-«input type= 'submit" value="OK* /› «torm»
-h2> Thank you, we received your responsesh2]
-*, user_input=user input)
-return render_template_string(*
-<>Hello, welcome to this app</p> dorm method="post>
-dinput type=text" name="user_input" »
-«input type='submit" value="OK" /› «form»
-
-============
 
 from flask import Flask, request, render_template_string
 
