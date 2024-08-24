@@ -187,12 +187,13 @@ sudo systemctl status nginx
 # Providing permissions to directories
 sudo chmod 777 /home/
 sudo chmod 777 /home/ec2-user/
-sudo chmod 777 /home/ec2-user/app/
-sudo touch /home/ec2-user/app/app.sock
-sudo chmod 666 /home/ec2-user/app/app.sock
+sudo chmod 777 /home/ec2-user/venvhb/
+sudo chmod 777 /home/ec2-user/venvhb/app/
+sudo touch /home/ec2-user/venvhb/app/app.sock
+sudo chmod 666 /home/ec2-user/venvhb/app/app.sock
 
 # Starting the application
-uwsgi --ini /home/ec2-user/app/app.ini
+uwsgi --ini /home/ec2-user/venvhb/app/app.ini
 
 Note: No changes are required in app.py file.
 
