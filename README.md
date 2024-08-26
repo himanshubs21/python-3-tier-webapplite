@@ -1,4 +1,4 @@
-Things to consider if you're imprementing this on your own system:
+Things to consider if you're implementing this on your own system or cloud platform:
 
 -Raw-text-file contains updated codes to be implemented. You can direcctly copy paste commands in given order to get it done
 
