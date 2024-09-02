@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS user_input (
+    id INTEGER PRIMARY KEY,
+    input TEXT NOT NULL
+);
